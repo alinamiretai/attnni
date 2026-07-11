@@ -1,0 +1,6 @@
+name = "attnni"
+version = "0.1.0"
+defaultTargets = ["Attnni"]
+
+[[lean_lib]]
+name = "Attnni"
