@@ -5,3 +5,4 @@ import Attnni.Lattice
 import Attnni.Checker
 import Attnni.Demo
 import Attnni.Rasp
+import Attnni.Dynamic
