@@ -69,3 +69,28 @@ def demoPositions : List Pos := [0, 1, 2]
 #eval (controller badMask  [sumLayer] ctx_secretA demoPositions ctx_secretB).value 0  -- fell back to ctx_secretB: value 0 = 0
 
 end Attnni
+
+namespace Attnni
+
+/-- A multi-head layer: several heads, each combining the attended values
+    differently (here: head 0 sums, head 1 takes the max, head 2 counts), then
+    the outputs are combined (summed). This is still just a `Combine` — so the
+    noninterference theorem covers multi-head attention with NO new proof. The
+    mask controls which positions every head sees; equal inputs to every head
+    force equal outputs, whatever the heads compute. -/
+def head0 : List Nat → Nat := fun vs => vs.foldl (· + ·) 0        -- sum
+def head1 : List Nat → Nat := fun vs => vs.foldl Nat.max 0        -- max
+def head2 : List Nat → Nat := fun vs => vs.length                 -- count
+
+def multiHeadLayer : Combine := fun _ vs => head0 vs + head1 vs + head2 vs
+
+-- Multi-head, under the good (quarantine) mask: public output still cannot depend
+-- on the secret. Flip secret 42 -> 999, position 0 output stays identical.
+#eval (run goodMask [multiHeadLayer] ctx_secretA).value 0   -- public output, secret=42
+#eval (run goodMask [multiHeadLayer] ctx_secretB).value 0   -- public output, secret=999 (SAME)
+
+-- And it's covered by the theorem directly: multiHeadLayer is just a Combine,
+-- so `noninterference goodMask [multiHeadLayer] ...` applies with no new proof.
+#check @noninterference
+
+end Attnni
