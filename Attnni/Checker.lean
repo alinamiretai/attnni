@@ -1,5 +1,6 @@
 import Attnni.Model
 import Attnni.Gate
+import Attnni.Noninterference
 
 /-!
 # Attnni.Checker — a decidable well-maskedness checker and the control loop
@@ -87,3 +88,36 @@ theorem controller_runs_only_wellMasked (m : Mask) (fs : List Combine) (c : Cont
 end Attnni
 
 #print axioms Attnni.controller_runs_only_wellMasked
+
+namespace Attnni
+
+/-- **The audit-window bridge.** If every position outside the audited list is
+    labeled high (the conservative encoding of "the real context is finite"),
+    then bounded well-maskedness implies full well-maskedness: outside the
+    window the condition is vacuous (only low positions are constrained), and
+    inside it the checker covered it. -/
+theorem wellMaskedOn_to_wellMasked {m : Mask} {c : Context} {ps : List Pos}
+    (hout : ∀ p, p ∉ ps → c.label p = .high)
+    (hon : WellMaskedOn m c ps) : WellMasked m c := by
+  intro p hlow q hq
+  by_cases hp : p ∈ ps
+  · exact hon p hp hlow q hq
+  · exact absurd hlow (by rw [hout p hp]; simp)
+
+/-- **End-to-end controller guarantee.** If the controller executed (didn't fall
+    back) and the context is high outside the audit window, then the executed
+    run is fully well-masked — so the noninterference theorem applies to it:
+    the output at low positions is identical across secret variations. -/
+theorem controller_noninterference (m : Mask) (fs : List Combine)
+    {c₁ c₂ : Context} (ps : List Pos) (fallback : Context)
+    (hout : ∀ p, p ∉ ps → c₁.label p = .high)
+    (hran : controller m fs c₁ ps fallback ≠ fallback)
+    (h : LowEq c₁ c₂) :
+    LowEq (run m fs c₁) (run m fs c₂) :=
+  noninterference m fs
+    (wellMaskedOn_to_wellMasked hout (controller_runs_only_wellMasked m fs c₁ ps fallback hran))
+    h
+
+end Attnni
+
+#print axioms Attnni.controller_noninterference
