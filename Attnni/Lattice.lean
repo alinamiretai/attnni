@@ -1,4 +1,5 @@
 import Attnni.Model
+import Attnni.Gate
 
 /-!
 # Attnni.Lattice — multi-compartment noninterference
@@ -96,3 +97,84 @@ theorem lnoninterference {flows : L → L → Prop}
 end Attnni
 
 #print axioms Attnni.lnoninterference
+
+namespace Attnni
+
+/-- The two-point lattice as a flows relation: low flows anywhere, high only to
+    high. `flowsLH a b` means "a may flow to b". -/
+def flowsLH (a b : Label) : Prop := a = .low ∨ b = .high
+
+theorem flowsLH_trans : ∀ a b c, flowsLH a b → flowsLH b c → flowsLH a c := by
+  intro a b c hab hbc
+  cases a <;> cases b <;> cases c <;>
+    simp_all [flowsLH]
+
+/-- Sanity check: `flowsLH x low` holds iff x is low (secrets cannot flow to a
+    low observer). This is why observer ℓ = low recovers confidentiality. -/
+theorem flowsLH_to_low (x : Label) : flowsLH x .low ↔ x = .low := by
+  cases x <;> simp [flowsLH]
+
+end Attnni
+
+namespace Attnni
+
+/-- Convert an original Context into a labeled context over `Label`. -/
+def toLContext (c : Context) : LContext Label :=
+  { value := c.value, label := c.label }
+
+/-- The original WellMasked implies the lattice WellMasked under flowsLH:
+    if public positions attend only to public, then every attended pair satisfies
+    flowsLH (attended label flows to attender label). -/
+theorem wellMasked_toLContext {m : Mask} {c : Context}
+    (hwm : WellMasked m c) : LWellMasked flowsLH m (toLContext c) := by
+  intro p q hq
+  show flowsLH (c.label q) (c.label p)
+  simp only [flowsLH]
+  by_cases hp : c.label p = .low
+  · exact Or.inl (hwm p hp q hq)
+  · right
+    cases hpl : c.label p with
+    | low => exact absurd hpl hp
+    | high => rfl
+
+/-- The original LowEq implies lattice LEq at observer low. -/
+theorem lowEq_toLContext {c₁ c₂ : Context} (h : LowEq c₁ c₂) :
+    LEq flowsLH .low (toLContext c₁) (toLContext c₂) := by
+  obtain ⟨hlab, hval⟩ := h
+  refine ⟨fun p => hlab p, fun p hp => ?_⟩
+  simp only [toLContext] at *
+  -- hp : flowsLH (c₁.label p) low, which gives c₁.label p = low
+  rw [flowsLH_to_low] at hp
+  exact hval p hp
+
+end Attnni
+
+namespace Attnni
+
+/-- lrun preserves labels (layers never change labels). -/
+theorem lrun_label (m : Mask) (fs : List Combine) (c : LContext L) (p : Pos) :
+    (lrun m fs c).label p = c.label p := by
+  unfold lrun
+  induction fs generalizing c with
+  | nil => rfl
+  | cons f fs ih => simp only [List.foldl_cons]; rw [ih]; rfl
+
+/-- **The original two-label confidentiality guarantee, as a corollary of
+    multi-compartment noninterference.** Instantiating the general theorem at the
+    two-point lattice (flowsLH) with observer `low` recovers: under a well-masked
+    context, low positions compute identical values across runs differing only in
+    secrets — for any weights. This shows the general theorem subsumes the
+    original airgap. -/
+theorem noninterference_via_lattice (m : Mask) (fs : List Combine) {c₁ c₂ : Context}
+    (hwm : WellMasked m c₁) (h : LowEq c₁ c₂) (p : Pos)
+    (hp : c₁.label p = .low) :
+    (lrun m fs (toLContext c₁)).value p = (lrun m fs (toLContext c₂)).value p := by
+  have hgen := lnoninterference flowsLH_trans .low m fs
+                 (wellMasked_toLContext hwm) (lowEq_toLContext h)
+  have hlab : (lrun m fs (toLContext c₁)).label p = .low := by
+    rw [lrun_label]; exact hp
+  exact hgen.2 p ((flowsLH_to_low _).mpr hlab)
+
+end Attnni
+
+#print axioms Attnni.noninterference_via_lattice
