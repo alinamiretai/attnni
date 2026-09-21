@@ -47,7 +47,3 @@ python benchmark_b.py --model meta-llama/Llama-3.1-8B-Instruct
 Runs each case twice — untrusted content attended (attack lands) vs airgapped
 (attack blocked) — and reports whether the injection was blocked while the
 correct answer was preserved.
-
-## More detail
-- Manuscript / arXiv: *(TBD)*
-- Blog writeup: *(TBD)*
